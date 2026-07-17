@@ -1,0 +1,16 @@
+{
+  "_comment": "Corrections for known upstream CFBD poll errors. phase = 'final' or a regular-season week number. rank null removes a bad entry. Applied after the raw join in build.py.",
+  "corrections": [
+    {"season": 2023, "poll": "ap", "phase": "final", "teamId": 145, "rank": 9,
+     "note": "Ole Miss (11-2) finished #9 AP 2023; CFBD stored slot as Mississippi State (344)."},
+    {"season": 2023, "poll": "ap", "phase": "final", "teamId": 344, "rank": null,
+     "note": "Remove bogus #9 Mississippi State (5-7, unranked) from 2023 final AP."}
+  ],
+  "_boundaries_comment": "Mid-season coaching changes. through_week N = coach gets regular weeks 1..N only, no postseason. from_week M = weeks M..end + postseason. CFBD's per-season game counts are unreliable for recent/fired coaches, so we scope these by hand.",
+  "coach_boundaries": [
+    {"coach": "James Franklin", "school": "Penn State", "year": 2025, "through_week": 7,
+     "note": "Fired Oct 12 2025 after the wk7 Northwestern game; later 2025 games were under interim Terry Smith."},
+    {"coach": "Brian Kelly", "school": "LSU", "year": 2025, "through_week": 9,
+     "note": "Fired Oct 26 2025 after the wk9 Texas A&M loss; later 2025 games were under interim Frank Wilson."}
+  ]
+}

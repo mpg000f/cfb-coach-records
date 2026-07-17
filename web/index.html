@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coach vs. Ranked — CFB coaching records against ranked teams</title>
+<meta name="description" content="Filter any college football coach's career games against AP/Coaches-ranked opponents, by rank, matchup, and poll timing.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <h1>Coach <span class="vs">vs.</span> Ranked</h1>
+    <p class="tag">Every FBS head coach's record against ranked teams — filter by rank, matchup, and poll. 1936–2025.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="controls" aria-label="Filters">
+    <div class="coach-field">
+      <label for="coach-input">Coach</label>
+      <div class="combobox">
+        <input id="coach-input" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Search a coach — e.g. Nick Saban">
+        <ul id="coach-list" class="combo-list" role="listbox" hidden></ul>
+      </div>
+    </div>
+
+    <div class="filter-grid">
+      <div class="fld">
+        <label>Poll</label>
+        <div class="seg" data-group="poll">
+          <button data-val="ap" class="on">AP</button>
+          <button data-val="coaches">Coaches</button>
+        </div>
+      </div>
+      <div class="fld">
+        <label>Rank timing</label>
+        <div class="seg" data-group="timing">
+          <button data-val="game" class="on">At kickoff</button>
+          <button data-val="final">Final</button>
+        </div>
+      </div>
+      <div class="fld">
+        <label for="thr">Opponent rank ≤</label>
+        <select id="thr">
+          <option value="5">Top 5</option>
+          <option value="10" selected>Top 10</option>
+          <option value="15">Top 15</option>
+          <option value="25">Top 25</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label>Matchup</label>
+        <label class="chk"><input type="checkbox" id="both"> Both teams ranked</label>
+      </div>
+      <div class="fld">
+        <label for="loc">Location</label>
+        <select id="loc">
+          <option value="all">All</option>
+          <option value="home">Home</option>
+          <option value="away">Away</option>
+          <option value="neutral">Neutral</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label for="opp">Opponent</label>
+        <input id="opp" type="text" autocomplete="off" placeholder="Any">
+      </div>
+      <div class="fld">
+        <label for="y1">Seasons</label>
+        <div class="range"><input id="y1" type="number" min="1936" max="2025" placeholder="1936">
+        <span>–</span><input id="y2" type="number" min="1936" max="2025" placeholder="2025"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="summary" class="summary" hidden></section>
+  <section id="results"></section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Data: <a href="https://collegefootballdata.com">CollegeFootballData</a>. Bowl/playoff games use the final regular-season poll for the "at-kickoff" rank. Runs entirely in your browser.</p>
+  </div>
+</footer>
+
+<script src="vendor/sql-wasm.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
