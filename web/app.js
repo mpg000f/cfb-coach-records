@@ -42,7 +42,7 @@ function rankCols() {
 function currentFilters() {
   return {
     thr: parseInt($("#thr").value, 10),
-    both: $("#both").checked,
+    teamThr: parseInt($("#tthr").value, 10) || 0,
     loc: $("#loc").value,
     opp: $("#opp").value.trim(),
     y1: parseInt($("#y1").value, 10) || 1936,
@@ -57,7 +57,7 @@ function buildQuery(select, coach) {
   const where = [`coach = $coach`, `${c.opp} BETWEEN 1 AND $thr`,
     `season BETWEEN $y1 AND $y2`];
   const p = { $coach: coach, $thr: f.thr, $y1: f.y1, $y2: f.y2 };
-  if (f.both) where.push(`${c.team} BETWEEN 1 AND $thr`);
+  if (f.teamThr) { where.push(`${c.team} BETWEEN 1 AND $tthr`); p.$tthr = f.teamThr; }
   if (f.loc === "neutral") where.push(`neutral = 1`);
   else if (f.loc === "home") where.push(`home = 1 AND neutral = 0`);
   else if (f.loc === "away") where.push(`home = 0 AND neutral = 0`);
@@ -118,7 +118,7 @@ function filterLabel() {
   const f = currentFilters();
   const poll = state.poll === "coaches" ? "Coaches" : "AP";
   const timing = state.timing === "final" ? "final" : "at kickoff";
-  const base = f.both ? `both teams Top ${f.thr}` : `vs Top ${f.thr}`;
+  const base = f.teamThr ? `Top ${f.teamThr} team vs Top ${f.thr}` : `vs Top ${f.thr}`;
   return `${base} (${poll}, ${timing})`;
 }
 
@@ -126,12 +126,12 @@ function filterLabel() {
 function renderLeaderboard() {
   const c = rankCols();
   const f = currentFilters();
-  const both = f.both ? `AND ${c.team} BETWEEN 1 AND ${f.thr}` : "";
+  const teamClause = f.teamThr ? `AND ${c.team} BETWEEN 1 AND ${f.teamThr}` : "";
   const board = rows(
     `SELECT coach,
        SUM(result='W') AS w, SUM(result='L') AS l, SUM(result='T') AS t
      FROM games
-     WHERE ${c.opp} BETWEEN 1 AND ${f.thr} AND season BETWEEN ${f.y1} AND ${f.y2} ${both}
+     WHERE ${c.opp} BETWEEN 1 AND ${f.thr} AND season BETWEEN ${f.y1} AND ${f.y2} ${teamClause}
      GROUP BY coach
      HAVING (w + l) >= 10
      ORDER BY (w * 1.0 / (w + l)) DESC, w DESC
@@ -216,7 +216,7 @@ function wireUI() {
     }));
   });
 
-  ["#thr", "#both", "#loc", "#opp", "#y1", "#y2"].forEach((sel) => {
+  ["#thr", "#tthr", "#loc", "#opp", "#y1", "#y2"].forEach((sel) => {
     const el = $(sel);
     el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input", refresh);
   });

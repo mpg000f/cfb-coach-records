@@ -51,8 +51,14 @@
         </select>
       </div>
       <div class="fld">
-        <label>Matchup</label>
-        <label class="chk"><input type="checkbox" id="both"> Both teams ranked</label>
+        <label for="tthr">Coach's team rank ≤</label>
+        <select id="tthr">
+          <option value="0" selected>Any</option>
+          <option value="5">Top 5</option>
+          <option value="10">Top 10</option>
+          <option value="15">Top 15</option>
+          <option value="25">Top 25 (ranked)</option>
+        </select>
       </div>
       <div class="fld">
         <label for="loc">Location</label>
