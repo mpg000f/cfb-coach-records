@@ -1,5 +1,7 @@
 # Coach vs. Ranked
 
+**Live:** https://mpg000f.github.io/cfb-coach-records/
+
 A coach-centric college football database: pick a head coach and filter their
 career games by opponent rank, matchup type, poll, and rank-timing. Built on the
 free [CollegeFootballData](https://collegefootballdata.com) API. All FBS coaches,
