@@ -4,6 +4,7 @@ let db = null;
 let coaches = [];       // {coach, first_year, last_year, ranked_games}
 let selectedCoach = null;
 const state = { poll: "ap", timing: "game" };
+let sortState = { col: "pct", dir: "desc" };  // leaderboard sort
 
 const $ = (s) => document.querySelector(s);
 
@@ -43,6 +44,7 @@ function currentFilters() {
   return {
     thr: parseInt($("#thr").value, 10),
     teamThr: parseInt($("#tthr").value, 10) || 0,
+    min: Math.max(1, parseInt($("#min").value, 10) || 1),
     loc: $("#loc").value,
     opp: $("#opp").value.trim(),
     y1: parseInt($("#y1").value, 10) || 1936,
@@ -122,7 +124,15 @@ function filterLabel() {
   return `${base} (${poll}, ${timing})`;
 }
 
-// Landing view: best coaches under the current filters.
+// Landing view: coaches ranked under the current filters. Sortable, min-games adjustable.
+const LEAD_COLS = [
+  { key: "coach", label: "Coach", get: (r) => r.coach.toLowerCase(), asc: true },
+  { key: "games", label: "Games", get: (r) => r.dec },
+  { key: "wins", label: "Record", get: (r) => r.w },
+  { key: "pct", label: "Win %", get: (r) => r.pct },
+];
+const LEAD_MAX = 100;  // display cap; sort is over the full qualifying set
+
 function renderLeaderboard() {
   const c = rankCols();
   const f = currentFilters();
@@ -133,24 +143,42 @@ function renderLeaderboard() {
      FROM games
      WHERE ${c.opp} BETWEEN 1 AND ${f.thr} AND season BETWEEN ${f.y1} AND ${f.y2} ${teamClause}
      GROUP BY coach
-     HAVING (w + l) >= 10
-     ORDER BY (w * 1.0 / (w + l)) DESC, w DESC
-     LIMIT 25`);
+     HAVING (w + l) >= ${f.min}`);
+  board.forEach((r) => { r.dec = r.w + r.l; r.pct = r.dec ? r.w / r.dec : 0; });
+
+  const col = LEAD_COLS.find((x) => x.key === sortState.col) || LEAD_COLS[3];
+  board.sort((a, b) => {
+    const x = col.get(a), y = col.get(b);
+    let cmp = x < y ? -1 : x > y ? 1 : 0;
+    if (cmp === 0) cmp = (a.w - b.w) || (a.pct - b.pct);  // stable tiebreak
+    return sortState.dir === "desc" ? -cmp : cmp;
+  });
+  const shown = board.slice(0, LEAD_MAX);
+
   $("#summary").hidden = true;
-  const body = board.map((r, i) => {
-    const pct = (r.w / (r.w + r.l) * 100).toFixed(1);
-    return `<tr>
+  const arrow = (k) => sortState.col === k ? (sortState.dir === "desc" ? " ▾" : " ▴") : "";
+  const heads = `<th>#</th>` + LEAD_COLS.map((x) =>
+    `<th class="sortable${sortState.col === x.key ? " sorted" : ""}" data-col="${x.key}">${x.label}${arrow(x.key)}</th>`).join("");
+  const body = shown.map((r, i) => `<tr>
       <td class="num">${i + 1}</td>
       <td class="lead-name" data-coach="${esc(r.coach)}">${esc(r.coach)}</td>
+      <td class="num">${r.dec}</td>
       <td class="num">${r.w}–${r.l}${r.t ? "–" + r.t : ""}</td>
-      <td class="num">${pct}%</td></tr>`;
-  }).join("");
-  $("#results").innerHTML = `<p class="sect-title">Leaderboard — ${filterLabel()} · min 10 games</p>
+      <td class="num">${(r.pct * 100).toFixed(1)}%</td></tr>`).join("");
+  const note = board.length > LEAD_MAX ? ` · showing ${LEAD_MAX} of ${board.length}` : "";
+  $("#results").innerHTML = `<p class="sect-title">Leaderboard — ${filterLabel()} · min ${f.min} games${note}</p>
     <div class="table-scroll"><table>
-      <thead><tr><th>#</th><th>Coach</th><th>Record</th><th>Win %</th></tr></thead>
-      <tbody>${body}</tbody></table></div>`;
+      <thead><tr>${heads}</tr></thead><tbody>${body}</tbody></table></div>`;
   $("#results").querySelectorAll(".lead-name").forEach((el) =>
     el.addEventListener("click", () => pickCoach(el.dataset.coach)));
+  $("#results").querySelectorAll("th.sortable").forEach((th) =>
+    th.addEventListener("click", () => {
+      const key = th.dataset.col;
+      const def = LEAD_COLS.find((x) => x.key === key);
+      if (sortState.col === key) sortState.dir = sortState.dir === "desc" ? "asc" : "desc";
+      else sortState = { col: key, dir: def.asc ? "asc" : "desc" };
+      renderLeaderboard();
+    }));
 }
 
 function refresh() { selectedCoach ? renderCoach() : renderLeaderboard(); }
@@ -216,7 +244,7 @@ function wireUI() {
     }));
   });
 
-  ["#thr", "#tthr", "#loc", "#opp", "#y1", "#y2"].forEach((sel) => {
+  ["#thr", "#tthr", "#min", "#loc", "#opp", "#y1", "#y2"].forEach((sel) => {
     const el = $(sel);
     el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input", refresh);
   });

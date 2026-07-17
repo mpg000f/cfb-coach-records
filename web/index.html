@@ -61,6 +61,10 @@
         </select>
       </div>
       <div class="fld">
+        <label for="min">Min games <span class="hint">(leaderboard)</span></label>
+        <input id="min" type="number" min="1" max="200" value="10">
+      </div>
+      <div class="fld">
         <label for="loc">Location</label>
         <select id="loc">
           <option value="all">All</option>
@@ -75,8 +79,8 @@
       </div>
       <div class="fld">
         <label for="y1">Seasons</label>
-        <div class="range"><input id="y1" type="number" min="1936" max="2025" placeholder="1936">
-        <span>–</span><input id="y2" type="number" min="1936" max="2025" placeholder="2025"></div>
+        <div class="range"><input id="y1" type="number" min="1936" max="2025" value="2000" placeholder="1936">
+        <span>–</span><input id="y2" type="number" min="1936" max="2025" value="2025" placeholder="2025"></div>
       </div>
     </div>
   </section>

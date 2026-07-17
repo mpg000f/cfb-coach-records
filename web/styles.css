@@ -94,6 +94,10 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .res.W { color: var(--win); } .res.L { color: var(--loss); } .res.T { color: var(--muted); }
 .lead-name { font-weight: 600; cursor: pointer; }
 .lead-name:hover { color: var(--accent); text-decoration: underline; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--ink); }
+th.sorted { color: var(--accent); }
+.hint { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: .7; }
 
 .empty, .loading { text-align: center; color: var(--muted); padding: 48px 20px; }
 .site-footer { border-top: 1px solid var(--line); margin-top: 40px; }
