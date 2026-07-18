@@ -10,9 +10,9 @@ ROOT = os.path.dirname(__file__)
 SRC = os.path.join(ROOT, "data", "coach_ranked.db")
 OUT = os.path.join(ROOT, "web", "data", "coaches.db")
 
-COLS = """coach, season, week, season_type, team, opponent, opp_coach, team_pts, opp_pts,
-result, neutral, home, team_ap_game, opp_ap_game, team_ap_final, opp_ap_final,
-team_coaches_game, opp_coaches_game, team_coaches_final, opp_coaches_final"""
+COLS = """coach, season, week, season_type, team, opponent, opp_coach, spread,
+team_pts, opp_pts, result, neutral, home, team_ap_game, opp_ap_game, team_ap_final,
+opp_ap_final, team_coaches_game, opp_coaches_game, team_coaches_final, opp_coaches_final"""
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
 
     out = sqlite3.connect(OUT)
     out.execute(f"CREATE TABLE games ({COLS})")
-    out.executemany(f"INSERT INTO games VALUES ({','.join('?' * 20)})", rows)
+    out.executemany(f"INSERT INTO games VALUES ({','.join('?' * 21)})", rows)
     # Coach index for the picker: span + total games (surfaces long careers).
     out.execute("""CREATE TABLE coaches AS
         SELECT coach,

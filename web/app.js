@@ -48,6 +48,7 @@ function currentFilters() {
     teamThr: parseInt($("#tthr").value, 10) || 0,
     min: Math.max(1, parseInt($("#min").value, 10) || 1),
     loc: $("#loc").value,
+    spread: $("#spread").value,
     opp: $("#opp").value.trim(),
     oppCoach: $("#oppcoach").value.trim(),
     y1: parseInt($("#y1").value, 10) || 1936,
@@ -66,6 +67,8 @@ function buildQuery(select, coach) {
   if (f.loc === "neutral") where.push(`neutral = 1`);
   else if (f.loc === "home") where.push(`home = 1 AND neutral = 0`);
   else if (f.loc === "away") where.push(`home = 0 AND neutral = 0`);
+  if (f.spread === "fav") where.push(`spread < 0`);
+  else if (f.spread === "dog") where.push(`spread > 0`);
   if (f.opp) {
     const terms = f.opp.split(",").map((s) => s.trim()).filter(Boolean);
     const ors = terms.map((t, i) => { p["$opp" + i] = "%" + t + "%"; return `opponent LIKE $opp${i}`; });
@@ -90,6 +93,7 @@ function stateToParams() {
   if (f.teamThr) p.set("tthr", f.teamThr);
   if (f.min !== 10) p.set("min", f.min);
   if (f.loc !== "all") p.set("loc", f.loc);
+  if (f.spread !== "all") p.set("spread", f.spread);
   if (f.opp) p.set("opp", f.opp);
   if (f.oppCoach) p.set("vs", f.oppCoach);
   if (f.y1 !== 2000) p.set("y1", f.y1);
@@ -119,6 +123,7 @@ function applyFromURL() {
   $("#tthr").value = p.get("tthr") ?? "0";
   $("#min").value = p.get("min") ?? "10";
   $("#loc").value = p.get("loc") ?? "all";
+  $("#spread").value = p.get("spread") ?? "all";
   $("#opp").value = p.get("opp") ?? "";
   $("#oppcoach").value = p.get("vs") ?? "";
   $("#y1").value = p.get("y1") ?? "2000";
@@ -136,7 +141,7 @@ function refresh() { selectedCoach ? renderCoach() : renderLeaderboard(); }
 // --- coach detail -------------------------------------------------------
 function renderCoach() {
   const q = buildQuery(
-    `SELECT season, week, season_type, team, opponent, opp_coach, team_pts, opp_pts,
+    `SELECT season, week, season_type, team, opponent, opp_coach, spread, team_pts, opp_pts,
             result, neutral, home, {team_rank} AS tr, {opp_rank} AS orr FROM games`,
     selectedCoach);
   const g = rows(q.sql + " ORDER BY season, week", q.params);
@@ -160,11 +165,24 @@ function renderCoach() {
   const chips = schools.map((s) =>
     `<span class="chip">${esc(s.team)} <em>${s.a === s.b ? s.a : s.a + "–" + s.b}</em></span>`).join("");
 
+  // Pregame-line breakdown (spreads exist from 2013 on).
+  const wl = g.filter((r) => r.spread != null);
+  let betting = "";
+  if (wl.length) {
+    const rec = (a) => { let w = 0, l = 0; a.forEach((r) => r.result === "W" ? w++ : r.result === "L" ? l++ : 0); return `${w}–${l}`; };
+    const fav = wl.filter((r) => r.spread < 0), dog = wl.filter((r) => r.spread > 0);
+    betting = `<p class="betting">Pregame favorite in <b>${fav.length} of ${wl.length}</b>
+      games with a line (${Math.round(fav.length / wl.length * 100)}%) ·
+      as favorite <b>${rec(fav)}</b> · as underdog <b>${rec(dog)}</b>
+      <span class="hint">lines since 2013</span></p>`;
+  }
+
   const head = `<div class="detail-head">
       <a class="back" href="?">← All coaches</a>
       <h2 class="coach-title">${esc(selectedCoach)}${h2h}</h2>
       <div class="schools">${chips}</div>
       <p class="sub">${label(f)}</p>
+      ${betting}
     </div>`;
 
   if (!g.length) {
@@ -181,13 +199,14 @@ function renderCoach() {
       <td>${r.opp_coach ? esc(r.opp_coach) : "—"}</td>
       <td class="num">${rk(r.orr)}</td>
       <td class="num">${rk(r.tr)}</td>
+      <td class="num">${spr(r.spread)}</td>
       <td class="num">${r.team_pts}–${r.opp_pts}</td>
       <td class="res ${r.result}">${r.result}</td>
     </tr>`;
   }).join("");
   $("#results").innerHTML = head + `<div class="table-scroll"><table>
       <thead><tr><th>Season</th><th>Team</th><th>Opponent</th><th>Opp. coach</th>
-      <th>Opp rank</th><th>Team rank</th><th>Score</th><th>Res</th></tr></thead>
+      <th>Opp rank</th><th>Team rank</th><th>Line</th><th>Score</th><th>Res</th></tr></thead>
       <tbody>${body}</tbody></table></div>`;
 }
 
@@ -255,11 +274,15 @@ function label(f) {
   const extra = [];
   if (f.opp) extra.push("vs " + f.opp);
   if (f.oppCoach) extra.push("H2H " + f.oppCoach);
+  if (f.spread === "fav") extra.push("as favorite");
+  else if (f.spread === "dog") extra.push("as underdog");
   return `${base} (${poll}, ${timing})${extra.length ? " · " + extra.join(" · ") : ""}`;
 }
 const spanOf = (name) => { const c = coaches.find((x) => x.coach === name); return c ? c.first_year + "–" + c.last_year : "—"; };
 const stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
 const rk = (n) => n ? `<span class="rk">#${n}</span>` : "—";
+const spr = (s) => s == null ? "—" : s === 0 ? "PK"
+  : `<span class="${s < 0 ? "fav" : "dog"}">${s < 0 ? s : "+" + s}</span>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
 
 // --- UI wiring ----------------------------------------------------------
@@ -323,7 +346,7 @@ function wireUI() {
     }));
   });
 
-  ["#thr", "#tthr", "#min", "#loc", "#opp", "#oppcoach", "#y1", "#y2"].forEach((sel) => {
+  ["#thr", "#tthr", "#min", "#loc", "#spread", "#opp", "#oppcoach", "#y1", "#y2"].forEach((sel) => {
     const el = $(sel);
     el.addEventListener(el.tagName === "SELECT" ? "change" : "input", onFilterChange);
   });

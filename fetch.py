@@ -12,6 +12,7 @@ RAW = os.path.join(os.path.dirname(__file__), "data", "raw")
 # AP poll began 1936; CFBD game+ranking coverage is solid across this span.
 START_YEAR = 1936
 END_YEAR = 2025
+LINES_START = 2013   # CFBD betting-line coverage begins here
 
 
 def get(path, params, dest):
@@ -50,7 +51,11 @@ def main():
                 os.path.join(RAW, f"rank_reg_{year}.json"))
         p = get("/rankings", {"year": year, "seasonType": "postseason"},
                 os.path.join(RAW, f"rank_post_{year}.json"))
-        print(f"{year}: {len(g)} games, {len(r)} reg-poll-weeks, {len(p)} post")
+        nlines = 0
+        if year >= LINES_START:
+            l = get("/lines", {"year": year}, os.path.join(RAW, f"lines_{year}.json"))
+            nlines = sum(1 for x in l if x.get("lines"))
+        print(f"{year}: {len(g)} games, {len(r)} reg-poll-weeks, {len(p)} post, {nlines} lines")
 
 
 if __name__ == "__main__":

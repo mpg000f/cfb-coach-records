@@ -80,6 +80,28 @@ def build_rank_lookups(year):
     return weekly, final, last_reg_week
 
 
+def line_map(year):
+    """game_id -> home-team spread (negative = home favored).
+
+    Provider changed over time: 'consensus' (2013–2022), then sportsbooks
+    (Bovada/DraftKings/William Hill, 2023+). Prefer a stable source, else any.
+    """
+    path = os.path.join(RAW, f"lines_{year}.json")
+    if not os.path.exists(path):
+        return {}
+    pref = ["consensus", "Bovada", "DraftKings", "William Hill (New Jersey)",
+            "teamrankings", "numberfire"]
+    m = {}
+    for g in load(f"lines_{year}.json"):
+        avail = {l["provider"]: l.get("spread")
+                 for l in g.get("lines", []) if l.get("spread") is not None}
+        if not avail:
+            continue
+        m[g["id"]] = next((avail[p] for p in pref if p in avail),
+                          next(iter(avail.values())))
+    return m
+
+
 def coach_map():
     """(school, year) -> list of 'First Last' coaches that season."""
     m = defaultdict(list)
@@ -105,7 +127,7 @@ def main():
     CREATE TABLE games (
       game_id INTEGER, season INTEGER, week INTEGER, season_type TEXT,
       neutral INTEGER, home INTEGER, coach TEXT, team TEXT, opponent TEXT,
-      opp_coach TEXT,
+      opp_coach TEXT, spread REAL,
       team_pts INTEGER, opp_pts INTEGER, result TEXT,
       team_ap_game INTEGER, opp_ap_game INTEGER,
       team_ap_final INTEGER, opp_ap_final INTEGER,
@@ -117,6 +139,7 @@ def main():
     for gf in sorted(glob.glob(os.path.join(RAW, "games_*.json"))):
         year = int(gf.split("_")[-1].split(".")[0])
         weekly, final, last_reg = build_rank_lookups(year)
+        lines = line_map(year)
         for g in load(os.path.basename(gf)):
             if not g.get("completed"):
                 continue
@@ -136,6 +159,7 @@ def main():
             else:
                 wk = g["week"]
             gamepoll = weekly.get(wk, {})
+            home_spread = lines.get(g["id"])
             for side in ("home", "away"):
                 team, opp = g[f"{side}Team"], g["awayTeam" if side == "home" else "homeTeam"]
                 tid, oid = g[f"{side}Id"], g["awayId" if side == "home" else "homeId"]
@@ -153,13 +177,14 @@ def main():
                         g["id"], year, g["week"], g["seasonType"],
                         1 if g.get("neutralSite") else 0,
                         1 if side == "home" else 0, coach, team, opp, opp_coach,
+                        None if home_spread is None else (home_spread if side == "home" else -home_spread),
                         tp, op, "W" if tp > op else ("L" if tp < op else "T"),
                         rank_at(gamepoll.get("ap"), tid), rank_at(gamepoll.get("ap"), oid),
                         rank_at(final.get("ap"), tid), rank_at(final.get("ap"), oid),
                         rank_at(gamepoll.get("coaches"), tid), rank_at(gamepoll.get("coaches"), oid),
                         rank_at(final.get("coaches"), tid), rank_at(final.get("coaches"), oid),
                     ))
-    con.executemany(f"INSERT INTO games VALUES ({','.join('?'*21)})", rows)
+    con.executemany(f"INSERT INTO games VALUES ({','.join('?'*22)})", rows)
     con.execute("CREATE INDEX ix_coach ON games(coach)")
     con.commit()
     n = con.execute("SELECT COUNT(*) FROM games WHERE coach IS NOT NULL").fetchone()[0]

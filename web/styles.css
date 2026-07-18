@@ -108,6 +108,11 @@ th.sorted { color: var(--accent); }
 .chip { background: var(--chip); border-radius: 20px; padding: 3px 11px; font-size: 13px; font-weight: 600; }
 .chip em { color: var(--muted); font-style: normal; font-weight: 500; }
 .sub { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
+.betting { margin: 10px 0 0; font-size: 13.5px; color: var(--ink);
+  background: var(--chip); border-radius: 8px; padding: 8px 12px; display: inline-block; }
+.betting b { font-weight: 700; }
+td .fav { color: var(--win); font-weight: 700; font-variant-numeric: tabular-nums; }
+td .dog { color: var(--muted); font-variant-numeric: tabular-nums; }
 .empty, .loading { text-align: center; color: var(--muted); padding: 48px 20px; }
 .site-footer { border-top: 1px solid var(--line); margin-top: 40px; }
 .site-footer .wrap { padding: 20px; color: var(--muted); font-size: 13px; }
