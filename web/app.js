@@ -164,11 +164,11 @@ function renderCoach() {
   const f = currentFilters();
 
   const h2h = f.oppCoach ? ` vs ${esc(f.oppCoach)}` : "";
-  $("#summary").hidden = false;
-  $("#summary").innerHTML = stat(`${w}–${l}${t ? "–" + t : ""}`, "Record")
+  const statsGrid = '<div class="summary" style="display:grid">'
+    + stat(`${w}–${l}${t ? "–" + t : ""}`, "Record")
     + stat((pct * 100).toFixed(1) + "%", "Win %")
     + stat(g.length, "Games")
-    + stat(spanOf(selectedCoach), "Span");
+    + stat(spanOf(selectedCoach), "Span") + "</div>";
 
   // Schools this coach was at (within the filtered set).
   const schools = rows(
@@ -194,11 +194,10 @@ function renderCoach() {
       <h2 class="coach-title">${esc(selectedCoach)}${h2h}</h2>
       <div class="schools">${chips}</div>
       <p class="sub">${label(f)}</p>
-      ${betting}
     </div>`;
 
   if (!g.length) {
-    $("#results").innerHTML = head + '<p class="empty">No games match these filters.</p>';
+    $("#results").innerHTML = head + statsGrid + betting + '<p class="empty">No games match these filters.</p>';
     return;
   }
   const body = g.map((r) => {
@@ -216,7 +215,7 @@ function renderCoach() {
       <td class="res ${r.result}">${r.result}</td>
     </tr>`;
   }).join("");
-  $("#results").innerHTML = head + `<div class="table-scroll"><table>
+  $("#results").innerHTML = head + statsGrid + betting + `<div class="table-scroll"><table>
       <thead><tr><th>Season</th><th>Team</th><th>Opponent</th><th>Opp. coach</th>
       <th>Opp rank</th><th>Team rank</th><th>Line</th><th>Score</th><th>Res</th></tr></thead>
       <tbody>${body}</tbody></table></div>`;
@@ -252,16 +251,20 @@ function renderLeaderboard() {
   });
   const shown = board.slice(0, LEAD_MAX);
 
-  $("#summary").hidden = true;
   const arrow = (k) => sortState.col === k ? (sortState.dir === "desc" ? " ▾" : " ▴") : "";
   const heads = `<th>#</th>` + LEAD_COLS.map((x) =>
     `<th class="sortable${sortState.col === x.key ? " sorted" : ""}" data-col="${x.key}">${x.label}${arrow(x.key)}</th>`).join("");
-  const body = shown.map((r, i) => `<tr>
-      <td class="num">${i + 1}</td>
+  const body = shown.map((r, i) => {
+    const rank = i < 3 ? `<span class="medal m${i + 1}">${i + 1}</span>` : (i + 1);
+    const p = r.pct * 100;
+    const meter = `<span class="meter"><span style="width:${p.toFixed(0)}%;background:hsl(${Math.round(p * 1.2)} 62% 45%)"></span></span>`;
+    return `<tr>
+      <td class="rankcell">${rank}</td>
       <td><a class="lead-name" href="${ROOT}c/${slugify(r.coach)}.html" data-coach="${esc(r.coach)}">${esc(r.coach)}</a></td>
       <td class="num">${r.dec}</td>
       <td class="num">${r.w}–${r.l}${r.t ? "–" + r.t : ""}</td>
-      <td class="num">${(r.pct * 100).toFixed(1)}%</td></tr>`).join("");
+      <td><div class="pctcell">${meter}<span class="pctnum">${p.toFixed(1)}%</span></div></td></tr>`;
+  }).join("");
   const note = board.length > LEAD_MAX ? ` · showing ${LEAD_MAX} of ${board.length}` : "";
   $("#results").innerHTML = `<p class="sect-title">Leaderboard — ${label(f)} · min ${f.min} games${note}</p>
     <div class="table-scroll"><table>
