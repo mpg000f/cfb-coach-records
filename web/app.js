@@ -1,7 +1,7 @@
 "use strict";
 
 let db = null;
-let coaches = [];       // {coach, first_year, last_year, ranked_games}
+let coaches = [];       // {coach, first_year, last_year, games}
 let selectedCoach = null;
 const state = { poll: "ap", timing: "game" };
 let sortState = { col: "pct", dir: "desc" };  // leaderboard sort
@@ -10,20 +10,23 @@ const $ = (s) => document.querySelector(s);
 
 async function init() {
   const results = $("#results");
-  results.innerHTML = '<p class="loading">Loading database…</p>';
+  results.innerHTML = '<p class="loading">Loading database (~12 MB, first visit only)…</p>';
   try {
     const SQL = await initSqlJs({ locateFile: (f) => "vendor/" + f });
     const buf = await fetch("data/coaches.db").then((r) => r.arrayBuffer());
     db = new SQL.Database(new Uint8Array(buf));
-    coaches = rows("SELECT coach, first_year, last_year, ranked_games FROM coaches");
+    coaches = rows("SELECT coach, first_year, last_year, games FROM coaches");
+    $("#allcoaches").innerHTML = coaches
+      .map((c) => `<option value="${esc(c.coach)}">`).join("");
     wireUI();
-    renderLeaderboard();
+    applyFromURL();               // render from the current URL (shareable/deep-linkable)
+    window.addEventListener("popstate", applyFromURL);
   } catch (e) {
     results.innerHTML = '<p class="empty">Could not load the database. ' + e.message + "</p>";
   }
 }
 
-// --- tiny query helpers -------------------------------------------------
+// --- query helpers ------------------------------------------------------
 function rows(sql, params) {
   const st = db.prepare(sql);
   if (params) st.bind(params);
@@ -33,7 +36,6 @@ function rows(sql, params) {
   return out;
 }
 
-// --- filter reads -------------------------------------------------------
 function rankCols() {
   const poll = state.poll === "coaches" ? "coaches" : "ap";
   const timing = state.timing === "final" ? "final" : "game";
@@ -42,115 +44,179 @@ function rankCols() {
 
 function currentFilters() {
   return {
-    thr: parseInt($("#thr").value, 10),
+    thr: parseInt($("#thr").value, 10) || 0,        // 0 = Any (no opp-rank limit)
     teamThr: parseInt($("#tthr").value, 10) || 0,
     min: Math.max(1, parseInt($("#min").value, 10) || 1),
     loc: $("#loc").value,
     opp: $("#opp").value.trim(),
+    oppCoach: $("#oppcoach").value.trim(),
     y1: parseInt($("#y1").value, 10) || 1936,
     y2: parseInt($("#y2").value, 10) || 2025,
   };
 }
 
-// Build the shared WHERE clause + params for the selected coach & filters.
+// Shared WHERE clause + params for a coach's games under current filters.
 function buildQuery(select, coach) {
   const c = rankCols();
   const f = currentFilters();
-  const where = [`coach = $coach`, `${c.opp} BETWEEN 1 AND $thr`,
-    `season BETWEEN $y1 AND $y2`];
-  const p = { $coach: coach, $thr: f.thr, $y1: f.y1, $y2: f.y2 };
+  const where = [`coach = $coach`, `season BETWEEN $y1 AND $y2`];
+  const p = { $coach: coach, $y1: f.y1, $y2: f.y2 };
+  if (f.thr) { where.push(`${c.opp} BETWEEN 1 AND $thr`); p.$thr = f.thr; }
   if (f.teamThr) { where.push(`${c.team} BETWEEN 1 AND $tthr`); p.$tthr = f.teamThr; }
   if (f.loc === "neutral") where.push(`neutral = 1`);
   else if (f.loc === "home") where.push(`home = 1 AND neutral = 0`);
   else if (f.loc === "away") where.push(`home = 0 AND neutral = 0`);
-  if (f.opp) { where.push(`opponent LIKE $opp`); p.$opp = "%" + f.opp + "%"; }
+  if (f.opp) {
+    const terms = f.opp.split(",").map((s) => s.trim()).filter(Boolean);
+    const ors = terms.map((t, i) => { p["$opp" + i] = "%" + t + "%"; return `opponent LIKE $opp${i}`; });
+    if (ors.length) where.push("(" + ors.join(" OR ") + ")");
+  }
+  if (f.oppCoach) { where.push(`opp_coach = $oc`); p.$oc = f.oppCoach; }
   return {
-    sql: select.replace("{team_rank}", c.team).replace("{opp_rank}", c.opp)
+    sql: select.replace(/\{team_rank\}/g, c.team).replace(/\{opp_rank\}/g, c.opp)
       + " WHERE " + where.join(" AND "),
     params: p,
   };
 }
 
-// --- rendering ----------------------------------------------------------
+// --- URL state ----------------------------------------------------------
+function stateToParams() {
+  const f = currentFilters();
+  const p = new URLSearchParams();
+  if (selectedCoach) p.set("coach", selectedCoach);
+  if (state.poll !== "ap") p.set("poll", state.poll);
+  if (state.timing !== "game") p.set("t", state.timing);
+  if (f.thr !== 10) p.set("thr", f.thr);
+  if (f.teamThr) p.set("tthr", f.teamThr);
+  if (f.min !== 10) p.set("min", f.min);
+  if (f.loc !== "all") p.set("loc", f.loc);
+  if (f.opp) p.set("opp", f.opp);
+  if (f.oppCoach) p.set("vs", f.oppCoach);
+  if (f.y1 !== 2000) p.set("y1", f.y1);
+  if (f.y2 !== 2025) p.set("y2", f.y2);
+  if (!selectedCoach && !(sortState.col === "pct" && sortState.dir === "desc"))
+    p.set("sort", sortState.col + "." + sortState.dir);
+  return p;
+}
+
+function syncURL(push) {
+  const qs = stateToParams().toString();
+  const url = qs ? "?" + qs : location.pathname;
+  history[push ? "pushState" : "replaceState"](null, "", url);
+}
+
+function setSeg(group, val) {
+  document.querySelectorAll(`.seg[data-group="${group}"] button`).forEach((b) =>
+    b.classList.toggle("on", b.dataset.val === val));
+}
+
+function applyFromURL() {
+  const p = new URLSearchParams(location.search);
+  state.poll = p.get("poll") === "coaches" ? "coaches" : "ap";
+  state.timing = p.get("t") === "final" ? "final" : "game";
+  setSeg("poll", state.poll); setSeg("timing", state.timing);
+  $("#thr").value = p.get("thr") ?? "10";
+  $("#tthr").value = p.get("tthr") ?? "0";
+  $("#min").value = p.get("min") ?? "10";
+  $("#loc").value = p.get("loc") ?? "all";
+  $("#opp").value = p.get("opp") ?? "";
+  $("#oppcoach").value = p.get("vs") ?? "";
+  $("#y1").value = p.get("y1") ?? "2000";
+  $("#y2").value = p.get("y2") ?? "2025";
+  const s = p.get("sort");
+  sortState = s ? { col: s.split(".")[0], dir: s.split(".")[1] || "desc" }
+                : { col: "pct", dir: "desc" };
+  selectedCoach = p.get("coach") || null;
+  $("#coach-input").value = selectedCoach || "";
+  refresh();
+}
+
+function refresh() { selectedCoach ? renderCoach() : renderLeaderboard(); }
+
+// --- coach detail -------------------------------------------------------
 function renderCoach() {
-  if (!selectedCoach) return;
   const q = buildQuery(
-    `SELECT season, week, season_type, team, opponent, team_pts, opp_pts, result,
-            neutral, home, {team_rank} AS tr, {opp_rank} AS orr FROM games`,
+    `SELECT season, week, season_type, team, opponent, opp_coach, team_pts, opp_pts,
+            result, neutral, home, {team_rank} AS tr, {opp_rank} AS orr FROM games`,
     selectedCoach);
   const g = rows(q.sql + " ORDER BY season, week", q.params);
 
   let w = 0, l = 0, t = 0;
   for (const r of g) { if (r.result === "W") w++; else if (r.result === "L") l++; else t++; }
-  const pct = w + l ? (w / (w + l)) : 0;
+  const pct = w + l ? w / (w + l) : 0;
+  const f = currentFilters();
 
-  const c = coaches.find((x) => x.coach === selectedCoach);
+  const h2h = f.oppCoach ? ` vs ${esc(f.oppCoach)}` : "";
   $("#summary").hidden = false;
   $("#summary").innerHTML = stat(`${w}–${l}${t ? "–" + t : ""}`, "Record")
     + stat((pct * 100).toFixed(1) + "%", "Win %")
     + stat(g.length, "Games")
-    + stat(c ? c.first_year + "–" + c.last_year : "—", "Span");
+    + stat(spanOf(selectedCoach), "Span");
 
-  const label = filterLabel();
+  // Schools this coach was at (within the filtered set).
+  const schools = rows(
+    `SELECT team, MIN(season) a, MAX(season) b, COUNT(*) n FROM games
+     WHERE coach = $c GROUP BY team ORDER BY a`, { $c: selectedCoach });
+  const chips = schools.map((s) =>
+    `<span class="chip">${esc(s.team)} <em>${s.a === s.b ? s.a : s.a + "–" + s.b}</em></span>`).join("");
+
+  const head = `<div class="detail-head">
+      <a class="back" href="?">← All coaches</a>
+      <h2 class="coach-title">${esc(selectedCoach)}${h2h}</h2>
+      <div class="schools">${chips}</div>
+      <p class="sub">${label(f)}</p>
+    </div>`;
+
   if (!g.length) {
-    $("#results").innerHTML = `<p class="sect-title">${esc(selectedCoach)} — ${label}</p>`
-      + '<p class="empty">No games match these filters.</p>';
+    $("#results").innerHTML = head + '<p class="empty">No games match these filters.</p>';
     return;
   }
   const body = g.map((r) => {
-    const loc = r.neutral ? "N" : (r.home ? "vs" : "at");
+    const loc = r.neutral ? "vs" : (r.home ? "vs" : "at");
+    const site = r.neutral ? ' <span class="hint">(N)</span>' : "";
     return `<tr>
       <td class="num">${r.season}</td>
-      <td>${loc} ${esc(r.opponent)}</td>
+      <td>${esc(r.team)}</td>
+      <td>${loc} ${esc(r.opponent)}${site}</td>
+      <td>${r.opp_coach ? esc(r.opp_coach) : "—"}</td>
       <td class="num">${rk(r.orr)}</td>
       <td class="num">${rk(r.tr)}</td>
       <td class="num">${r.team_pts}–${r.opp_pts}</td>
       <td class="res ${r.result}">${r.result}</td>
-      <td>${r.season_type === "postseason" ? "Bowl/CFP" : "Wk " + r.week}</td>
     </tr>`;
   }).join("");
-  $("#results").innerHTML = `<p class="sect-title">${esc(selectedCoach)} — ${label}</p>
-    <div class="table-scroll"><table>
-      <thead><tr><th>Season</th><th>Opponent</th><th>Opp rank</th><th>Team rank</th>
-      <th>Score</th><th>Res</th><th>When</th></tr></thead>
+  $("#results").innerHTML = head + `<div class="table-scroll"><table>
+      <thead><tr><th>Season</th><th>Team</th><th>Opponent</th><th>Opp. coach</th>
+      <th>Opp rank</th><th>Team rank</th><th>Score</th><th>Res</th></tr></thead>
       <tbody>${body}</tbody></table></div>`;
 }
 
-function filterLabel() {
-  const f = currentFilters();
-  const poll = state.poll === "coaches" ? "Coaches" : "AP";
-  const timing = state.timing === "final" ? "final" : "at kickoff";
-  const base = f.teamThr ? `Top ${f.teamThr} team vs Top ${f.thr}` : `vs Top ${f.thr}`;
-  return `${base} (${poll}, ${timing})`;
-}
-
-// Landing view: coaches ranked under the current filters. Sortable, min-games adjustable.
+// --- leaderboard --------------------------------------------------------
 const LEAD_COLS = [
   { key: "coach", label: "Coach", get: (r) => r.coach.toLowerCase(), asc: true },
   { key: "games", label: "Games", get: (r) => r.dec },
   { key: "wins", label: "Record", get: (r) => r.w },
   { key: "pct", label: "Win %", get: (r) => r.pct },
 ];
-const LEAD_MAX = 100;  // display cap; sort is over the full qualifying set
+const LEAD_MAX = 100;
 
 function renderLeaderboard() {
   const c = rankCols();
   const f = currentFilters();
-  const teamClause = f.teamThr ? `AND ${c.team} BETWEEN 1 AND ${f.teamThr}` : "";
-  const board = rows(
-    `SELECT coach,
-       SUM(result='W') AS w, SUM(result='L') AS l, SUM(result='T') AS t
-     FROM games
-     WHERE ${c.opp} BETWEEN 1 AND ${f.thr} AND season BETWEEN ${f.y1} AND ${f.y2} ${teamClause}
-     GROUP BY coach
-     HAVING (w + l) >= ${f.min}`);
+  const q = buildQuery(
+    `SELECT coach, SUM(result='W') AS w, SUM(result='L') AS l, SUM(result='T') AS t FROM games`,
+    "");
+  // buildQuery pins coach = ''; swap that for a GROUP BY across all coaches.
+  const sql = q.sql.replace("coach = $coach AND ", "") + " GROUP BY coach HAVING (w+l) >= " + f.min;
+  const params = { ...q.params }; delete params.$coach;
+  const board = rows(sql, params);
   board.forEach((r) => { r.dec = r.w + r.l; r.pct = r.dec ? r.w / r.dec : 0; });
 
   const col = LEAD_COLS.find((x) => x.key === sortState.col) || LEAD_COLS[3];
   board.sort((a, b) => {
     const x = col.get(a), y = col.get(b);
     let cmp = x < y ? -1 : x > y ? 1 : 0;
-    if (cmp === 0) cmp = (a.w - b.w) || (a.pct - b.pct);  // stable tiebreak
+    if (cmp === 0) cmp = (a.w - b.w) || (a.pct - b.pct);
     return sortState.dir === "desc" ? -cmp : cmp;
   });
   const shown = board.slice(0, LEAD_MAX);
@@ -166,36 +232,55 @@ function renderLeaderboard() {
       <td class="num">${r.w}–${r.l}${r.t ? "–" + r.t : ""}</td>
       <td class="num">${(r.pct * 100).toFixed(1)}%</td></tr>`).join("");
   const note = board.length > LEAD_MAX ? ` · showing ${LEAD_MAX} of ${board.length}` : "";
-  $("#results").innerHTML = `<p class="sect-title">Leaderboard — ${filterLabel()} · min ${f.min} games${note}</p>
+  $("#results").innerHTML = `<p class="sect-title">Leaderboard — ${label(f)} · min ${f.min} games${note}</p>
     <div class="table-scroll"><table>
       <thead><tr>${heads}</tr></thead><tbody>${body}</tbody></table></div>`;
   $("#results").querySelectorAll(".lead-name").forEach((el) =>
     el.addEventListener("click", () => pickCoach(el.dataset.coach)));
   $("#results").querySelectorAll("th.sortable").forEach((th) =>
     th.addEventListener("click", () => {
-      const key = th.dataset.col;
-      const def = LEAD_COLS.find((x) => x.key === key);
+      const key = th.dataset.col, def = LEAD_COLS.find((x) => x.key === key);
       if (sortState.col === key) sortState.dir = sortState.dir === "desc" ? "asc" : "desc";
       else sortState = { col: key, dir: def.asc ? "asc" : "desc" };
-      renderLeaderboard();
+      syncURL(false); renderLeaderboard();
     }));
 }
 
-function refresh() { selectedCoach ? renderCoach() : renderLeaderboard(); }
-
+// --- labels & small helpers --------------------------------------------
+function label(f) {
+  const poll = state.poll === "coaches" ? "Coaches" : "AP";
+  const timing = state.timing === "final" ? "final" : "at kickoff";
+  let base = f.thr ? `vs Top ${f.thr}` : "vs all opponents";
+  if (f.teamThr) base = `Top ${f.teamThr} team ${base}`;
+  const extra = [];
+  if (f.opp) extra.push("vs " + f.opp);
+  if (f.oppCoach) extra.push("H2H " + f.oppCoach);
+  return `${base} (${poll}, ${timing})${extra.length ? " · " + extra.join(" · ") : ""}`;
+}
+const spanOf = (name) => { const c = coaches.find((x) => x.coach === name); return c ? c.first_year + "–" + c.last_year : "—"; };
 const stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
 const rk = (n) => n ? `<span class="rk">#${n}</span>` : "—";
-const esc = (s) => String(s).replace(/[&<>"]/g, (m) =>
-  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+const esc = (s) => String(s).replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
 
 // --- UI wiring ----------------------------------------------------------
 function pickCoach(name) {
   selectedCoach = name;
   $("#coach-input").value = name;
   $("#coach-list").hidden = true;
+  syncURL(true);
   renderCoach();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
+
+function goHome(e) {
+  if (e) e.preventDefault();
+  selectedCoach = null;
+  $("#coach-input").value = "";
+  syncURL(true);
+  renderLeaderboard();
+}
+
+function onFilterChange() { syncURL(false); refresh(); }
 
 function wireUI() {
   const input = $("#coach-input");
@@ -204,15 +289,13 @@ function wireUI() {
 
   const showList = () => {
     const q = input.value.trim().toLowerCase();
-    const items = (q
-      ? coaches.filter((c) => c.coach.toLowerCase().includes(q))
-      : coaches).slice(0, 40);
+    const items = (q ? coaches.filter((c) => c.coach.toLowerCase().includes(q)) : coaches).slice(0, 40);
     active = -1;
     if (!items.length) { list.hidden = true; return; }
     list.innerHTML = items.map((c) =>
       `<li role="option" data-coach="${esc(c.coach)}">
         <span class="cn">${esc(c.coach)}</span>
-        <span class="cm">${c.first_year}–${c.last_year} · ${c.ranked_games} ranked</span>
+        <span class="cm">${c.first_year}–${c.last_year} · ${c.games} games</span>
       </li>`).join("");
     list.hidden = false;
     list.querySelectorAll("li").forEach((li) =>
@@ -233,20 +316,22 @@ function wireUI() {
     if (lis[active]) lis[active].scrollIntoView({ block: "nearest" });
   });
 
-  // Segmented toggles (poll, timing)
   document.querySelectorAll(".seg").forEach((seg) => {
     const group = seg.dataset.group;
     seg.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
-      seg.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
-      b.classList.add("on");
-      state[group] = b.dataset.val;
-      refresh();
+      setSeg(group, b.dataset.val); state[group] = b.dataset.val; onFilterChange();
     }));
   });
 
-  ["#thr", "#tthr", "#min", "#loc", "#opp", "#y1", "#y2"].forEach((sel) => {
+  ["#thr", "#tthr", "#min", "#loc", "#opp", "#oppcoach", "#y1", "#y2"].forEach((sel) => {
     const el = $(sel);
-    el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input", refresh);
+    el.addEventListener(el.tagName === "SELECT" ? "change" : "input", onFilterChange);
+  });
+
+  $("#home").addEventListener("click", goHome);
+  // "← All coaches" back link is re-rendered inside #results; delegate it.
+  $("#results").addEventListener("click", (e) => {
+    if (e.target.closest("a.back")) goHome(e);
   });
 }
 

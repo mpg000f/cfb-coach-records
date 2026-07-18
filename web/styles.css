@@ -99,6 +99,15 @@ th.sortable:hover { color: var(--ink); }
 th.sorted { color: var(--accent); }
 .hint { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: .7; }
 
+.detail-head { margin-bottom: 18px; }
+.back { display: inline-block; font-size: 13px; font-weight: 600; text-decoration: none;
+  color: var(--muted); margin-bottom: 10px; }
+.back:hover { color: var(--accent); }
+.coach-title { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
+.schools { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.chip { background: var(--chip); border-radius: 20px; padding: 3px 11px; font-size: 13px; font-weight: 600; }
+.chip em { color: var(--muted); font-style: normal; font-weight: 500; }
+.sub { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
 .empty, .loading { text-align: center; color: var(--muted); padding: 48px 20px; }
 .site-footer { border-top: 1px solid var(--line); margin-top: 40px; }
 .site-footer .wrap { padding: 20px; color: var(--muted); font-size: 13px; }

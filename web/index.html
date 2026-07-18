@@ -10,8 +10,8 @@
 <body>
 <header class="site-header">
   <div class="wrap">
-    <h1>Coach <span class="vs">vs.</span> Ranked</h1>
-    <p class="tag">Every FBS head coach's record against ranked teams — filter by rank, matchup, and poll. 1936–2025.</p>
+    <h1><a id="home" href="?">Coach <span class="vs">vs.</span> Ranked</a></h1>
+    <p class="tag">Every FBS head coach's record — filter by opponent rank, matchup, specific opponents, or head-to-head vs another coach. 1936–2025.</p>
   </div>
 </header>
 
@@ -44,6 +44,7 @@
       <div class="fld">
         <label for="thr">Opponent rank ≤</label>
         <select id="thr">
+          <option value="0">Any (all games)</option>
           <option value="5">Top 5</option>
           <option value="10" selected>Top 10</option>
           <option value="15">Top 15</option>
@@ -74,8 +75,13 @@
         </select>
       </div>
       <div class="fld">
-        <label for="opp">Opponent</label>
-        <input id="opp" type="text" autocomplete="off" placeholder="Any">
+        <label for="opp">Opponent(s) <span class="hint">comma-separated</span></label>
+        <input id="opp" type="text" autocomplete="off" placeholder="e.g. Ohio State, Michigan">
+      </div>
+      <div class="fld">
+        <label for="oppcoach">Head-to-head vs coach</label>
+        <input id="oppcoach" type="text" autocomplete="off" list="allcoaches" placeholder="Opposing coach">
+        <datalist id="allcoaches"></datalist>
       </div>
       <div class="fld">
         <label for="y1">Seasons</label>

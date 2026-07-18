@@ -105,6 +105,7 @@ def main():
     CREATE TABLE games (
       game_id INTEGER, season INTEGER, week INTEGER, season_type TEXT,
       neutral INTEGER, home INTEGER, coach TEXT, team TEXT, opponent TEXT,
+      opp_coach TEXT,
       team_pts INTEGER, opp_pts INTEGER, result TEXT,
       team_ap_game INTEGER, opp_ap_game INTEGER,
       team_ap_final INTEGER, opp_ap_final INTEGER,
@@ -141,20 +142,24 @@ def main():
                 tp = hp if side == "home" else ap_
                 op = ap_ if side == "home" else hp
                 coaches = cmap.get((team, year), [None])
+                # Opposing head coach active that week (for head-to-head).
+                opp_coach = next(
+                    (oc for oc in cmap.get((opp, year), [])
+                     if coaches_game(oc, opp, year, g["week"], g["seasonType"])), None)
                 for coach in coaches:
                     if coach and not coaches_game(coach, team, year, g["week"], g["seasonType"]):
                         continue
                     rows.append((
                         g["id"], year, g["week"], g["seasonType"],
                         1 if g.get("neutralSite") else 0,
-                        1 if side == "home" else 0, coach, team, opp,
+                        1 if side == "home" else 0, coach, team, opp, opp_coach,
                         tp, op, "W" if tp > op else ("L" if tp < op else "T"),
                         rank_at(gamepoll.get("ap"), tid), rank_at(gamepoll.get("ap"), oid),
                         rank_at(final.get("ap"), tid), rank_at(final.get("ap"), oid),
                         rank_at(gamepoll.get("coaches"), tid), rank_at(gamepoll.get("coaches"), oid),
                         rank_at(final.get("coaches"), tid), rank_at(final.get("coaches"), oid),
                     ))
-    con.executemany(f"INSERT INTO games VALUES ({','.join('?'*20)})", rows)
+    con.executemany(f"INSERT INTO games VALUES ({','.join('?'*21)})", rows)
     con.execute("CREATE INDEX ix_coach ON games(coach)")
     con.commit()
     n = con.execute("SELECT COUNT(*) FROM games WHERE coach IS NOT NULL").fetchone()[0]
