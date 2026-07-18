@@ -86,19 +86,24 @@ def line_map(year):
     Provider changed over time: 'consensus' (2013–2022), then sportsbooks
     (Bovada/DraftKings/William Hill, 2023+). Prefer a stable source, else any.
     """
-    path = os.path.join(RAW, f"lines_{year}.json")
-    if not os.path.exists(path):
-        return {}
     pref = ["consensus", "Bovada", "DraftKings", "William Hill (New Jersey)",
             "teamrankings", "numberfire"]
     m = {}
-    for g in load(f"lines_{year}.json"):
-        avail = {l["provider"]: l.get("spread")
-                 for l in g.get("lines", []) if l.get("spread") is not None}
-        if not avail:
-            continue
-        m[g["id"]] = next((avail[p] for p in pref if p in avail),
-                          next(iter(avail.values())))
+    if os.path.exists(os.path.join(RAW, f"lines_{year}.json")):
+        for g in load(f"lines_{year}.json"):
+            avail = {l["provider"]: l.get("spread")
+                     for l in g.get("lines", []) if l.get("spread") is not None}
+            if not avail:
+                continue
+            m[g["id"]] = next((avail[p] for p in pref if p in avail),
+                              next(iter(avail.values())))
+    # Backfill pre-2013 from the Sportsbook Reviews Online archive (see fetch_sbr.py).
+    sbr = os.path.join(RAW, f"lines_sbr_{year}.json")
+    if os.path.exists(sbr):
+        for g in json.load(open(sbr)):
+            sp = g["lines"][0].get("spread")
+            if g["id"] not in m and sp is not None:
+                m[g["id"]] = sp
     return m
 
 

@@ -174,7 +174,7 @@ function renderCoach() {
     betting = `<p class="betting">Pregame favorite in <b>${fav.length} of ${wl.length}</b>
       games with a line (${Math.round(fav.length / wl.length * 100)}%) ·
       as favorite <b>${rec(fav)}</b> · as underdog <b>${rec(dog)}</b>
-      <span class="hint">lines since 2013</span></p>`;
+      <span class="hint">lines: 2007–present</span></p>`;
   }
 
   const head = `<div class="detail-head">

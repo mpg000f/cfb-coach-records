@@ -13,9 +13,11 @@ team- or player-centric or static snapshots. This one is filtered **by coach**.
 ## Pipeline
 
 ```
-fetch.py    # pull coaches, games, and weekly AP/Coaches polls -> data/raw/*.json (cached)
-build.py    # join into data/coach_ranked.db, one row per (coach, game)
-validate.py # reconcile against the hand-built AP Top 10 spreadsheet
+fetch.py     # pull coaches, games, weekly AP/Coaches polls, betting lines (2013+) -> data/raw/
+fetch_sbr.py # backfill 2007-2012 pregame spreads from Sportsbook Reviews Online
+build.py     # join into data/coach_ranked.db, one row per (coach, game)
+export_web.py# compact all-games DB for the browser -> web/data/coaches.db
+validate.py  # reconcile against the hand-built AP Top 10 spreadsheet
 ```
 
 Run: `export CFBD_API_KEY=...`, then `python3 fetch.py && python3 build.py`.
@@ -56,6 +58,15 @@ match exactly for most coaches; every residual difference traces to one of:
    poll release dates; the championship-week end of the same issue is already handled.
 
 None of these are join-logic errors; the approach is validated.
+
+## Betting spreads
+
+Each game carries the pregame point spread from the coach's-team perspective
+(negative = favored). Coverage: CFBD provides lines from **2013**; **2007–2012**
+is backfilled from Sportsbook Reviews Online (parsed HTML, matched to CFBD games
+by season + final scores with home/away-orientation handling for neutral sites).
+Validated: favorites win ~77–79% straight-up and cover ~48–49% ATS in both
+sources, confirming consistent sign/magnitude. Pre-2007 has no spread data.
 
 ## TODO (build phase)
 
