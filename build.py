@@ -98,7 +98,7 @@ def line_map(year):
             m[g["id"]] = next((avail[p] for p in pref if p in avail),
                               next(iter(avail.values())))
     # Backfill pre-2013 from the Sportsbook Reviews Online archive (see fetch_sbr.py).
-    sbr = os.path.join(RAW, f"lines_sbr_{year}.json")
+    sbr = os.path.join(ROOT, "data", "sbr", f"lines_sbr_{year}.json")
     if os.path.exists(sbr):
         for g in json.load(open(sbr)):
             sp = g["lines"][0].get("spread")

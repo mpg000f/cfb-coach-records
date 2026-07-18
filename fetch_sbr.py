@@ -13,8 +13,9 @@ import html
 import glob
 
 ROOT = os.path.dirname(__file__)
-SBR = os.path.join(ROOT, "data", "raw_sbr")
-RAW = os.path.join(ROOT, "data", "raw")
+SBR = os.path.join(ROOT, "data", "raw_sbr")       # downloaded HTML (git-ignored cache)
+RAW = os.path.join(ROOT, "data", "raw")           # CFBD cache (git-ignored)
+SBR_OUT = os.path.join(ROOT, "data", "sbr")       # matched spreads (committed, build input)
 
 
 def norm(name):
@@ -120,12 +121,13 @@ def match_year(year):
             ambig += 1
         else:
             miss += 1
-    dest = os.path.join(RAW, f"lines_sbr_{year}.json")
+    dest = os.path.join(SBR_OUT, f"lines_sbr_{year}.json")
     json.dump(out, open(dest, "w"))
     return matched, ambig, miss, len(out)
 
 
 def main():
+    os.makedirs(SBR_OUT, exist_ok=True)
     for f in sorted(glob.glob(os.path.join(SBR, "sbr_*.html"))):
         year = int(re.search(r"sbr_(\d+)", f).group(1))
         m, a, ms, n = match_year(year)

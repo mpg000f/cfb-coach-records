@@ -4,6 +4,7 @@ import os
 import time
 import urllib.request
 import urllib.error
+import datetime
 
 API = "https://api.collegefootballdata.com"
 KEY = os.environ.get("CFBD_API_KEY", "")
@@ -11,7 +12,7 @@ RAW = os.path.join(os.path.dirname(__file__), "data", "raw")
 
 # AP poll began 1936; CFBD game+ranking coverage is solid across this span.
 START_YEAR = 1936
-END_YEAR = 2025
+END_YEAR = datetime.date.today().year   # auto-advances into each new season
 LINES_START = 2013   # CFBD betting-line coverage begins here
 
 

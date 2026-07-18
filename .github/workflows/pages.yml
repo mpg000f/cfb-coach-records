@@ -3,7 +3,10 @@ name: Deploy site to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ["web/**", ".github/workflows/pages.yml"]
+    paths: ["web/**", "gen_pages.py", ".github/workflows/pages.yml"]
+  workflow_run:
+    workflows: ["Weekly data refresh"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Generate per-coach pages + sitemap
+        run: python3 gen_pages.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

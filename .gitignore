@@ -1,6 +1,9 @@
 data/raw/
 data/raw_sbr/
 data/*.db
+web/c/
+web/sitemap.xml
+web/robots.txt
 *.log
 __pycache__/
 .env

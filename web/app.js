@@ -8,14 +8,23 @@ let sortState = { col: "pct", dir: "desc" };  // leaderboard sort
 
 const $ = (s) => document.querySelector(s);
 
+// Resolve the app root from this script's own URL so assets and routing work
+// identically at "/" (homepage) and "/c/<slug>.html" (pre-rendered coach pages).
+const ROOT = (document.currentScript ? document.currentScript.src
+  : [...document.scripts].map((s) => s.src).find((s) => /app\.js(\?|$)/.test(s)))
+  .replace(/app\.js.*$/, "");
+const slugify = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+let slugToCoach = {};
+
 async function init() {
   const results = $("#results");
-  results.innerHTML = '<p class="loading">Loading database (~12 MB, first visit only)…</p>';
+  results.innerHTML = '<p class="loading">Loading database (~3 MB transfer, first visit only)…</p>';
   try {
-    const SQL = await initSqlJs({ locateFile: (f) => "vendor/" + f });
-    const buf = await fetch("data/coaches.db").then((r) => r.arrayBuffer());
+    const SQL = await initSqlJs({ locateFile: (f) => ROOT + "vendor/" + f });
+    const buf = await fetch(ROOT + "data/coaches.db").then((r) => r.arrayBuffer());
     db = new SQL.Database(new Uint8Array(buf));
     coaches = rows("SELECT coach, first_year, last_year, games FROM coaches");
+    coaches.forEach((c) => { slugToCoach[slugify(c.coach)] = c.coach; });
     $("#allcoaches").innerHTML = coaches
       .map((c) => `<option value="${esc(c.coach)}">`).join("");
     wireUI();
@@ -86,7 +95,7 @@ function buildQuery(select, coach) {
 function stateToParams() {
   const f = currentFilters();
   const p = new URLSearchParams();
-  if (selectedCoach) p.set("coach", selectedCoach);
+  // Coach lives in the path (/c/<slug>.html), not the query.
   if (state.poll !== "ap") p.set("poll", state.poll);
   if (state.timing !== "game") p.set("t", state.timing);
   if (f.thr !== 10) p.set("thr", f.thr);
@@ -105,7 +114,8 @@ function stateToParams() {
 
 function syncURL(push) {
   const qs = stateToParams().toString();
-  const url = qs ? "?" + qs : location.pathname;
+  const base = selectedCoach ? ROOT + "c/" + slugify(selectedCoach) + ".html" : ROOT;
+  const url = base + (qs ? "?" + qs : "");
   history[push ? "pushState" : "replaceState"](null, "", url);
 }
 
@@ -131,7 +141,9 @@ function applyFromURL() {
   const s = p.get("sort");
   sortState = s ? { col: s.split(".")[0], dir: s.split(".")[1] || "desc" }
                 : { col: "pct", dir: "desc" };
-  selectedCoach = p.get("coach") || null;
+  // Coach from the path (/c/<slug>.html), falling back to a legacy ?coach= param.
+  const m = location.pathname.match(/\/c\/([^/]+)\.html$/);
+  selectedCoach = (m && slugToCoach[m[1]]) || p.get("coach") || null;
   $("#coach-input").value = selectedCoach || "";
   refresh();
 }
@@ -178,7 +190,7 @@ function renderCoach() {
   }
 
   const head = `<div class="detail-head">
-      <a class="back" href="?">← All coaches</a>
+      <a class="back" href="${ROOT}">← All coaches</a>
       <h2 class="coach-title">${esc(selectedCoach)}${h2h}</h2>
       <div class="schools">${chips}</div>
       <p class="sub">${label(f)}</p>
@@ -246,7 +258,7 @@ function renderLeaderboard() {
     `<th class="sortable${sortState.col === x.key ? " sorted" : ""}" data-col="${x.key}">${x.label}${arrow(x.key)}</th>`).join("");
   const body = shown.map((r, i) => `<tr>
       <td class="num">${i + 1}</td>
-      <td class="lead-name" data-coach="${esc(r.coach)}">${esc(r.coach)}</td>
+      <td><a class="lead-name" href="${ROOT}c/${slugify(r.coach)}.html" data-coach="${esc(r.coach)}">${esc(r.coach)}</a></td>
       <td class="num">${r.dec}</td>
       <td class="num">${r.w}–${r.l}${r.t ? "–" + r.t : ""}</td>
       <td class="num">${(r.pct * 100).toFixed(1)}%</td></tr>`).join("");
@@ -255,7 +267,7 @@ function renderLeaderboard() {
     <div class="table-scroll"><table>
       <thead><tr>${heads}</tr></thead><tbody>${body}</tbody></table></div>`;
   $("#results").querySelectorAll(".lead-name").forEach((el) =>
-    el.addEventListener("click", () => pickCoach(el.dataset.coach)));
+    el.addEventListener("click", (e) => { e.preventDefault(); pickCoach(el.dataset.coach); }));
   $("#results").querySelectorAll("th.sortable").forEach((th) =>
     th.addEventListener("click", () => {
       const key = th.dataset.col, def = LEAD_COLS.find((x) => x.key === key);
@@ -351,6 +363,7 @@ function wireUI() {
     el.addEventListener(el.tagName === "SELECT" ? "change" : "input", onFilterChange);
   });
 
+  $("#home").href = ROOT;
   $("#home").addEventListener("click", goHome);
   // "← All coaches" back link is re-rendered inside #results; delegate it.
   $("#results").addEventListener("click", (e) => {

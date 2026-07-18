@@ -1,0 +1,58 @@
+name: Weekly data refresh
+
+on:
+  schedule:
+    - cron: "0 9 * * 2"   # Tuesdays 09:00 UTC — after weekend games + Sun/Mon polls
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Persist the CFBD cache so we only re-pull the current season each week.
+      - name: Restore raw-data cache
+        uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: cfbd-raw-${{ github.run_id }}
+          restore-keys: cfbd-raw-
+
+      - name: Refresh current season and rebuild
+        env:
+          CFBD_API_KEY: ${{ secrets.CFBD_API_KEY }}
+        run: |
+          python - <<'PY'
+          import datetime, glob, os
+          y = datetime.date.today().year
+          for pat in (f"games_{y}", f"rank_reg_{y}", f"rank_post_{y}", f"lines_{y}"):
+              for f in glob.glob(os.path.join("data", "raw", pat + ".json")):
+                  os.remove(f)
+          print("forced refresh of", y)
+          PY
+          python fetch.py
+          python build.py
+          python export_web.py
+
+      - name: Commit if the database changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/data/coaches.db
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "Weekly data refresh ($(date -u +%Y-%m-%d))"
+            git push
+          fi
