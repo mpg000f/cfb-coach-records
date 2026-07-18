@@ -71,8 +71,11 @@ function buildQuery(select, coach) {
   const f = currentFilters();
   const where = [`coach = $coach`, `season BETWEEN $y1 AND $y2`];
   const p = { $coach: coach, $y1: f.y1, $y2: f.y2 };
-  if (f.thr) { where.push(`${c.opp} BETWEEN 1 AND $thr`); p.$thr = f.thr; }
-  if (f.teamThr) { where.push(`${c.team} BETWEEN 1 AND $tthr`); p.$tthr = f.teamThr; }
+  // Rank threshold: -1 = unranked (not in the poll), 0 = any, N = Top N.
+  if (f.thr === -1) where.push(`${c.opp} IS NULL`);
+  else if (f.thr) { where.push(`${c.opp} BETWEEN 1 AND $thr`); p.$thr = f.thr; }
+  if (f.teamThr === -1) where.push(`${c.team} IS NULL`);
+  else if (f.teamThr) { where.push(`${c.team} BETWEEN 1 AND $tthr`); p.$tthr = f.teamThr; }
   if (f.loc === "neutral") where.push(`neutral = 1`);
   else if (f.loc === "home") where.push(`home = 1 AND neutral = 0`);
   else if (f.loc === "away") where.push(`home = 0 AND neutral = 0`);
@@ -284,8 +287,9 @@ function renderLeaderboard() {
 function label(f) {
   const poll = state.poll === "coaches" ? "Coaches" : "AP";
   const timing = state.timing === "final" ? "final" : "at kickoff";
-  let base = f.thr ? `vs Top ${f.thr}` : "vs all opponents";
-  if (f.teamThr) base = `Top ${f.teamThr} team ${base}`;
+  let base = f.thr === -1 ? "vs unranked" : f.thr ? `vs Top ${f.thr}` : "vs all opponents";
+  if (f.teamThr === -1) base = `unranked team ${base}`;
+  else if (f.teamThr) base = `Top ${f.teamThr} team ${base}`;
   const extra = [];
   if (f.opp) extra.push("vs " + f.opp);
   if (f.oppCoach) extra.push("H2H " + f.oppCoach);
