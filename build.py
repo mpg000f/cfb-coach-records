@@ -35,11 +35,8 @@ def load_overrides():
     return by_year, bounds
 
 
-def coaches_game(coach, team, year, week, season_type):
-    """Apply a mid-season coaching-change boundary; True if this game is the coach's."""
-    b = BOUNDS.get((coach, team, year))
-    if not b:
-        return True
+def boundary_claims(b, week, season_type):
+    """True if this hand-set boundary's coach coached this game."""
     if "through_week" in b:
         return season_type == "regular" and week <= b["through_week"]
     if "from_week" in b:
@@ -107,14 +104,75 @@ def line_map(year):
     return m
 
 
-def coach_map():
-    """(school, year) -> list of 'First Last' coaches that season."""
-    m = defaultdict(list)
+def coach_counts():
+    """(school,year)->{coach: CFBD game count}, and (coach,school)->first year there."""
+    counts = defaultdict(dict)
+    first = {}
     for c in load("coaches.json"):
         name = f"{c['firstName']} {c['lastName']}".strip()
         for s in c.get("seasons", []):
-            m[(s["school"], s["year"])].append(name)
-    return m
+            counts[(s["school"], s["year"])][name] = s.get("games") or 0
+            k = (name, s["school"])
+            first[k] = min(first.get(k, s["year"]), s["year"])
+    return counts, first
+
+
+def assign_year(year, games):
+    """Assign each game to exactly one coach per team: (game_id, school) -> coach.
+
+    A season split between coaches (mid-year change or a bowl interim) is divided
+    chronologically by CFBD's per-coach game counts — the primary keeps the games
+    they coached, the interim gets the tail (usually the bowl). Hand-set boundaries
+    override this for the messy cases where CFBD's counts are unreliable.
+    """
+    sched = defaultdict(list)   # school -> [(startDate, reg/post, week, game_id)]
+    meta = {}                   # game_id -> (week, season_type)
+    for g in games:
+        if not g.get("completed") or g.get("homePoints") is None or g.get("awayPoints") is None:
+            continue
+        meta[g["id"]] = (g["week"], g["seasonType"])
+        post = 0 if g["seasonType"] == "regular" else 1
+        for school in (g["homeTeam"], g["awayTeam"]):
+            sched[school].append((g.get("startDate") or "", post, g["week"], g["id"]))
+
+    assign = {}
+    for school, lst in sched.items():
+        lst.sort()
+        reg = [x[3] for x in lst if x[1] == 0]     # regular-season game_ids, chronological
+        post = [x[3] for x in lst if x[1] == 1]    # postseason game_ids, chronological
+        counts = COUNTS.get((school, year), {})
+        coaches = list(counts.keys())
+        if not coaches:
+            continue
+        bounded = {c: BOUNDS[(c, school, year)] for c in coaches if (c, school, year) in BOUNDS}
+        if bounded:
+            unbounded = [c for c in coaches if c not in bounded]
+            for gid in reg + post:
+                wk, st = meta[gid]
+                claimer = next((c for c, b in bounded.items() if boundary_claims(b, wk, st)), None)
+                assign[(gid, school)] = claimer or (unbounded[0] if unbounded else None)
+            continue
+        allg = reg + post   # chronological (regular by date, then postseason)
+        if len(coaches) == 1:
+            for gid in allg:
+                assign[(gid, school)] = coaches[0]
+            continue
+        # Multiple coaches. If the counts add up, split chronologically ordering the
+        # coaches by when their tenure at the school began — the continuing coach took
+        # the early games, the arriving coach the late ones (handles both bowl interims
+        # and mid-year firings). Suspensions invert this and get a hand-boundary instead.
+        if sum(counts.values()) == len(allg) and all(counts.values()):
+            order = sorted(coaches, key=lambda c: (FIRST_YR.get((c, school), year), -counts[c]))
+            i = 0
+            for c in order:
+                for gid in allg[i:i + counts[c]]:
+                    assign[(gid, school)] = c
+                i += counts[c]
+        else:                                     # counts unreliable -> primary takes all
+            top = max(coaches, key=lambda c: counts[c])
+            for gid in allg:
+                assign[(gid, school)] = top
+    return assign
 
 
 def rank_at(lookup, teamid):
@@ -122,10 +180,10 @@ def rank_at(lookup, teamid):
 
 
 OVERRIDES, BOUNDS = load_overrides()
+COUNTS, FIRST_YR = coach_counts()
 
 
 def main():
-    cmap = coach_map()
     con = sqlite3.connect(DB)
     con.executescript("""
     DROP TABLE IF EXISTS games;
@@ -145,7 +203,9 @@ def main():
         year = int(gf.split("_")[-1].split(".")[0])
         weekly, final, last_reg = build_rank_lookups(year)
         lines = line_map(year)
-        for g in load(os.path.basename(gf)):
+        year_games = load(os.path.basename(gf))
+        assign = assign_year(year, year_games)   # (game_id, school) -> the one coach
+        for g in year_games:
             if not g.get("completed"):
                 continue
             hp, ap_ = g.get("homePoints"), g.get("awayPoints")
@@ -170,25 +230,19 @@ def main():
                 tid, oid = g[f"{side}Id"], g["awayId" if side == "home" else "homeId"]
                 tp = hp if side == "home" else ap_
                 op = ap_ if side == "home" else hp
-                coaches = cmap.get((team, year), [None])
-                # Opposing head coach active that week (for head-to-head).
-                opp_coach = next(
-                    (oc for oc in cmap.get((opp, year), [])
-                     if coaches_game(oc, opp, year, g["week"], g["seasonType"])), None)
-                for coach in coaches:
-                    if coach and not coaches_game(coach, team, year, g["week"], g["seasonType"]):
-                        continue
-                    rows.append((
-                        g["id"], year, g["week"], g["seasonType"],
-                        1 if g.get("neutralSite") else 0,
-                        1 if side == "home" else 0, coach, team, opp, opp_coach,
-                        None if home_spread is None else (home_spread if side == "home" else -home_spread),
-                        tp, op, "W" if tp > op else ("L" if tp < op else "T"),
-                        rank_at(gamepoll.get("ap"), tid), rank_at(gamepoll.get("ap"), oid),
-                        rank_at(final.get("ap"), tid), rank_at(final.get("ap"), oid),
-                        rank_at(gamepoll.get("coaches"), tid), rank_at(gamepoll.get("coaches"), oid),
-                        rank_at(final.get("coaches"), tid), rank_at(final.get("coaches"), oid),
-                    ))
+                coach = assign.get((g["id"], team))            # the one coach for this game
+                opp_coach = assign.get((g["id"], opp))         # opposing coach (head-to-head)
+                rows.append((
+                    g["id"], year, g["week"], g["seasonType"],
+                    1 if g.get("neutralSite") else 0,
+                    1 if side == "home" else 0, coach, team, opp, opp_coach,
+                    None if home_spread is None else (home_spread if side == "home" else -home_spread),
+                    tp, op, "W" if tp > op else ("L" if tp < op else "T"),
+                    rank_at(gamepoll.get("ap"), tid), rank_at(gamepoll.get("ap"), oid),
+                    rank_at(final.get("ap"), tid), rank_at(final.get("ap"), oid),
+                    rank_at(gamepoll.get("coaches"), tid), rank_at(gamepoll.get("coaches"), oid),
+                    rank_at(final.get("coaches"), tid), rank_at(final.get("coaches"), oid),
+                ))
     con.executemany(f"INSERT INTO games VALUES ({','.join('?'*22)})", rows)
     con.execute("CREATE INDEX ix_coach ON games(coach)")
     con.commit()

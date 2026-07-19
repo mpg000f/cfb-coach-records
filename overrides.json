@@ -11,6 +11,8 @@
     {"coach": "James Franklin", "school": "Penn State", "year": 2025, "through_week": 7,
      "note": "Fired Oct 12 2025 after the wk7 Northwestern game; later 2025 games were under interim Terry Smith."},
     {"coach": "Brian Kelly", "school": "LSU", "year": 2025, "through_week": 9,
-     "note": "Fired Oct 26 2025 after the wk9 Texas A&M loss; later 2025 games were under interim Frank Wilson."}
+     "note": "Fired Oct 26 2025 after the wk9 Texas A&M loss; later 2025 games were under interim Frank Wilson."},
+    {"coach": "Ryan Day", "school": "Ohio State", "year": 2018, "through_week": 3,
+     "note": "Meyer was suspended for the first 3 games of 2018; Day coached them, then Meyer returned. This inverts the usual tenure order, so pin Day to weeks 1-3."}
   ]
 }
