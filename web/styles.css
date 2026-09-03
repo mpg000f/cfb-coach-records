@@ -106,7 +106,9 @@ a { color: var(--accent); text-decoration: none; }
 .combo-list .cn { font-weight: 600; }
 .combo-list .cm { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 
-.filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 15px 16px; margin-top: 20px; }
+/* align-items:end bottom-aligns the fields, so a label that wraps to two lines
+   ("Opponent(s) comma-separated") no longer pushes its input below the rest. */
+.filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 15px 16px; margin-top: 20px; align-items: end; }
 .fld select, .fld input[type=text], .fld input[type=number] {
   width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px;
   background: var(--panel-2); color: var(--ink); font-family: var(--sans); font-size: 14px;
