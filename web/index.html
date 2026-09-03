@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Coach vs. Ranked — CFB coaching records against ranked teams</title>
-<meta name="description" content="Look up any college football head coach's record against AP/Coaches-ranked opponents — filter by rank, matchup, specific opponents, head-to-head vs another coach, and pregame spread.">
+<meta name="description" content="Look up any college football head coach's record against AP/Coaches-ranked opponents — filter by rank, matchup, specific opponents, head-to-head vs another coach, and pregame spread — or put two coaches side by side.">
 <link rel="canonical" href="https://mpg000f.github.io/cfb-coach-records/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Coach vs. Ranked">
 <meta property="og:title" content="Coach vs. Ranked — CFB coaching records against ranked teams">
-<meta property="og:description" content="Every FBS head coach's record against ranked teams, filterable by rank, matchup, opponent, head-to-head, and pregame spread. 1936–present.">
+<meta property="og:description" content="Every FBS head coach's record against ranked teams, filterable by rank, matchup, opponent, head-to-head, and pregame spread. Compare any two coaches side by side. 1936–present.">
 <meta property="og:url" content="https://mpg000f.github.io/cfb-coach-records/">
 <meta name="twitter:card" content="summary">
 <link rel="stylesheet" href="styles.css">
@@ -18,7 +18,7 @@
 <header class="site-header">
   <div class="wrap">
     <a id="home" href="?" class="brand"><h1>Coach <span class="vs">vs.</span> Ranked</h1></a>
-    <p class="tag">Every FBS head coach's career record against ranked teams — filter by rank, matchup, opponent, head-to-head, and the pregame spread.</p>
+    <p class="tag">Every FBS head coach's career record against ranked teams — filter by rank, matchup, opponent, and the pregame spread, or compare any two coaches head to head.</p>
     <ul class="masthead-stats">
       <li><b>1,300+</b> coaches</li>
       <li><b>111K</b> games</li>
@@ -31,11 +31,24 @@
 <main class="wrap">
   <section class="controls" aria-label="Filters">
     <div class="coach-field">
-      <label for="coach-input">Coach</label>
-      <div class="combobox">
-        <input id="coach-input" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Search a coach — e.g. Nick Saban">
-        <ul id="coach-list" class="combo-list" role="listbox" hidden></ul>
+      <div class="coach-row">
+        <div class="coach-slot">
+          <label for="coach-input">Coach</label>
+          <div class="combobox">
+            <input id="coach-input" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="Search a coach — e.g. Nick Saban">
+            <ul id="coach-list" class="combo-list" role="listbox" hidden></ul>
+          </div>
+        </div>
+        <div class="coach-vs"><span>vs</span></div>
+        <div class="coach-slot">
+          <label for="compare-input">Compare with <span class="hint">optional</span></label>
+          <div class="combobox">
+            <input id="compare-input" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="Second coach — e.g. Urban Meyer">
+            <ul id="compare-list" class="combo-list" role="listbox" hidden></ul>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -108,8 +121,8 @@
       </div>
       <div class="fld">
         <label for="y1">Seasons</label>
-        <div class="range"><input id="y1" type="number" min="1936" max="2025" value="2000" placeholder="1936">
-        <span>–</span><input id="y2" type="number" min="1936" max="2025" value="2025" placeholder="2025"></div>
+        <div class="range"><input id="y1" type="number" min="1936" value="2000" placeholder="1936">
+        <span>–</span><input id="y2" type="number" min="1936" placeholder="latest"></div>
       </div>
     </div>
   </section>

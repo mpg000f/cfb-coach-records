@@ -3,8 +3,9 @@
 **Live:** https://mpg000f.github.io/cfb-coach-records/
 
 A coach-centric college football database: pick a head coach and filter their
-career games by opponent rank, matchup type, poll, and rank-timing. Built on the
-free [CollegeFootballData](https://collegefootballdata.com) API. All FBS coaches,
+career games by opponent rank, matchup type, poll, and rank-timing — or drop a
+second coach in and compare the two side by side. Built on the free
+[CollegeFootballData](https://collegefootballdata.com) API. All FBS coaches,
 full AP-poll era (1936–present), self-updating.
 
 The idea nobody else does: existing tools (Stathead, cfbstats, CBS articles) are
@@ -26,6 +27,18 @@ Re-running `fetch.py` only pulls years not already cached.
 Each game row carries the coach's team rank and the opponent rank both **at
 kickoff** (that week's poll) and **final** (postseason poll), for **AP and
 Coaches** polls — so any rank/matchup filter is a plain `WHERE` clause.
+
+## Comparing two coaches
+
+Fill the second coach box (or add `?cmp=<slug>` to a coach URL) and the page turns
+into a head-to-head card: both coaches' record, win %, scoring, home/away/neutral
+splits, favorite/underdog splits and best win, all computed under the *same*
+filters so every row is apples-to-apples. Below it, every game the two actually
+coached against each other — that log deliberately ignores the rank filters, since
+"every meeting" is more useful than a filtered subset of them.
+
+The season range defaults to 2000–*latest season in the DB*, read from the data at
+load rather than hard-coded, so a new season shows up the week it starts.
 
 ## Design decisions
 
@@ -68,8 +81,14 @@ by season + final scores with home/away-orientation handling for neutral sites).
 Validated: favorites win ~77–79% straight-up and cover ~48–49% ATS in both
 sources, confirming consistent sign/magnitude. Pre-2007 has no spread data.
 
-## TODO (build phase)
+## Refresh schedule
 
-- Weekly in-season refresh job (cron / GitHub Action)
-- Public web front end (coach picker + rank/matchup/poll filters)
+`.github/workflows/refresh.yml` runs **Tuesdays at 09:00 UTC** (05:00 ET) and
+`pages.yml` redeploys the site when it commits. Tuesday rather than Monday on
+purpose: it clears Sunday's AP/Coaches poll releases *and* the occasional Monday
+game (Labor Day openers, some bowls). `check_refresh.py` gates the commit — if the
+rebuilt DB shrinks or fails an anchor record, the job aborts without publishing.
+
+## TODO
+
 - Extend overrides as validation surfaces more upstream quirks / coaching changes

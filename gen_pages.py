@@ -49,13 +49,14 @@ def build_template():
     return t
 
 
-def coach_page(t, con, coach):
+def coach_page(t, con, coach, maxy):
     slug = slugify(coach)
     span = con.execute("SELECT first_year, last_year, games FROM coaches WHERE coach=?", (coach,)).fetchone()
     fy, ly, _ = span
-    # Headline record matches the app's defaults: vs AP Top 10 at kickoff, 2000–2025.
+    # Headline record matches the app's defaults: vs AP Top 10 at kickoff, 2000–latest.
     w, l = con.execute("""SELECT SUM(result='W'), SUM(result='L') FROM games
-        WHERE coach=? AND opp_ap_game BETWEEN 1 AND 10 AND season BETWEEN 2000 AND 2025""", (coach,)).fetchone()
+        WHERE coach=? AND opp_ap_game BETWEEN 1 AND 10 AND season BETWEEN 2000 AND ?""",
+        (coach, maxy)).fetchone()
     w, l = w or 0, l or 0
     pct = f"{w / (w + l) * 100:.1f}%" if (w + l) else "—"
     schools = con.execute("""SELECT team, MIN(season), MAX(season) FROM games
@@ -64,8 +65,8 @@ def coach_page(t, con, coach):
 
     games = con.execute("""SELECT season, team, opponent, opp_coach, spread, team_pts, opp_pts,
         result, neutral, home, team_ap_game, opp_ap_game FROM games
-        WHERE coach=? AND opp_ap_game BETWEEN 1 AND 10 AND season BETWEEN 2000 AND 2025
-        ORDER BY season, week""", (coach,)).fetchall()
+        WHERE coach=? AND opp_ap_game BETWEEN 1 AND 10 AND season BETWEEN 2000 AND ?
+        ORDER BY season, week""", (coach, maxy)).fetchall()
     trs = []
     for s, tm, opp, oc, sp, tp, op, res, neu, home, tr, orr in games:
         loc = "vs" if (neu or home) else "at"
@@ -78,12 +79,13 @@ def coach_page(t, con, coach):
     table = (f'<div class="table-scroll"><table><thead><tr><th>Season</th><th>Team</th>'
              f'<th>Opponent</th><th>Opp. coach</th><th>Opp rank</th><th>Team rank</th>'
              f'<th>Line</th><th>Score</th><th>Res</th></tr></thead><tbody>{"".join(trs)}</tbody></table></div>'
-             ) if trs else '<p class="empty">No games vs AP Top 10 in 2000–2025.</p>'
+             ) if trs else f'<p class="empty">No games vs AP Top 10 in 2000–{maxy}.</p>'
 
     schools_names = ", ".join(tm for tm, _, _ in schools)
     title = f"{coach} — record vs ranked teams | Coach vs. Ranked"
     desc = (f"{coach} ({fy}–{ly}, {schools_names}) is {w}–{l} vs AP Top 10 teams "
-            f"(2000–2025). Full game log with ranks, pregame spreads, and head-to-head splits.")
+            f"(2000–{maxy}). Full game log with ranks, pregame spreads, and side-by-side "
+            f"comparison against any other coach.")
     url = f"{SITE}/c/{slug}.html"
 
     head = (f'<title>{esc(title)}</title>\n'
@@ -118,10 +120,11 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     con = sqlite3.connect(DB)
     t = build_template()
+    maxy = con.execute("SELECT MAX(season) FROM games").fetchone()[0]
     coaches = [r[0] for r in con.execute("SELECT coach FROM coaches")]
     urls = [f"{SITE}/"]
     for coach in coaches:
-        slug, page = coach_page(t, con, coach)
+        slug, page = coach_page(t, con, coach, maxy)
         open(os.path.join(OUT, f"{slug}.html"), "w", encoding="utf-8").write(page)
         urls.append(f"{SITE}/c/{slug}.html")
     con.close()
