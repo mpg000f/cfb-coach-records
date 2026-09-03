@@ -505,7 +505,7 @@ function goHome(e) {
 function onFilterChange() { syncURL(false); refresh(); }
 
 // Type-ahead coach picker. Used for both the primary and the compare slot.
-function wireCombo(inputSel, listSel, onPick) {
+function wireCombo(inputSel, listSel, onPick, current) {
   const input = $(inputSel);
   const list = $(listSel);
   let active = -1;
@@ -527,12 +527,23 @@ function wireCombo(inputSel, listSel, onPick) {
 
   input.addEventListener("input", showList);
   input.addEventListener("focus", showList);
-  input.addEventListener("blur", () => setTimeout(() => (list.hidden = true), 150));
+  input.addEventListener("blur", () => setTimeout(() => {
+    list.hidden = true;
+    // Committing a name typed in full and then clicked away from, without picking.
+    const v = input.value.trim().toLowerCase();
+    const exact = v && coaches.find((c) => c.coach.toLowerCase() === v);
+    if (exact && exact.coach !== current()) onPick(exact.coach);
+  }, 150));
   input.addEventListener("keydown", (e) => {
     const lis = [...list.querySelectorAll("li")];
     if (e.key === "ArrowDown") { active = Math.min(active + 1, lis.length - 1); e.preventDefault(); }
     else if (e.key === "ArrowUp") { active = Math.max(active - 1, 0); e.preventDefault(); }
-    else if (e.key === "Enter" && active >= 0) { onPick(lis[active].dataset.coach); return; }
+    else if (e.key === "Enter") {
+      // Enter takes the highlighted row, or the top match when nothing is highlighted.
+      const pick = lis[active >= 0 ? active : 0];
+      if (pick) { e.preventDefault(); onPick(pick.dataset.coach); }
+      return;
+    }
     else if (e.key === "Escape") { list.hidden = true; return; }
     else return;
     lis.forEach((li, i) => li.classList.toggle("active", i === active));
@@ -541,8 +552,8 @@ function wireCombo(inputSel, listSel, onPick) {
 }
 
 function wireUI() {
-  wireCombo("#coach-input", "#coach-list", pickCoach);
-  wireCombo("#compare-input", "#compare-list", setCompare);
+  wireCombo("#coach-input", "#coach-list", pickCoach, () => selectedCoach);
+  wireCombo("#compare-input", "#compare-list", setCompare, () => compareCoach);
   // Clearing the compare box by hand should drop back to the single-coach view.
   $("#compare-input").addEventListener("change", () => {
     if (!$("#compare-input").value.trim() && compareCoach) setCompare(null);
